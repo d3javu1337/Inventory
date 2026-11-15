@@ -70,6 +70,63 @@ INSERT INTO inventory_assignments (id, inventory_id, user_id, role, confirmation
 SELECT pg_temp.mvp_id('commission',n), pg_temp.mvp_id('inventory',n), pg_temp.mvp_id('user',(n-1)%3+1), 'Chairperson', 'Pending', NULL, NULL
 FROM generate_series(1,4) n ON CONFLICT (id) DO NOTHING;
 
+-- Only newly inserted checks receive an assignment and snapshot. A rerun must
+-- preserve completed checks, scans and any changes to the original scope.
+WITH scenarios AS (
+  SELECT n, label, status, pg_temp.mvp_id('employee', mol) AS mol_id, pg_temp.mvp_id('user', worker) AS user_id
+  FROM (VALUES
+    (5, 'Демо: активный обход с повреждённым ОС', 'Active', 2, 1),
+    (6, 'Демо: обход с недостачей ожидает подтверждения', 'AwaitingConfirmation', 3, 2)
+  ) s(n, label, status, mol, worker)
+), eligible_assets AS (
+  SELECT n AS asset_no, a.*
+  FROM generate_series(1,1000) n JOIN assets a ON a.id=pg_temp.mvp_id('asset',n)
+  WHERE a.archived_at IS NULL AND a.status <> 'Archived'
+), new_inventories AS (
+  INSERT INTO inventories (id, number, type, reason, reason_details, status, target_employee_id, planned_at,
+    started_at, scanning_finished_at, round, created_at)
+  SELECT pg_temp.mvp_id('inventory', s.n), 'INV-MVP-' || lpad(s.n::text,3,'0'), 'EventDriven', 'Other',
+    s.label, s.status, s.mol_id, '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z',
+    CASE WHEN s.status='AwaitingConfirmation' THEN '2026-10-10T09:15:00Z'::timestamptz END,
+    1, '2026-10-04T09:00:00Z'
+  FROM scenarios s
+  JOIN user_accounts u ON u.id=s.user_id
+  JOIN employees e ON e.id=u.employee_id
+  JOIN departments d ON d.id=e.department_id
+  WHERE u.role='InventoryEmployee' AND NOT u.is_blocked AND e.is_employed AND NOT e.is_archived
+    AND d.is_inventory_department AND NOT d.is_archived AND e.id<>s.mol_id
+    AND (SELECT count(*) FROM eligible_assets a WHERE a.materially_responsible_employee_id=s.mol_id) >= 3
+  ON CONFLICT (id) DO NOTHING
+  RETURNING id, status, started_at
+), new_assignments AS (
+  INSERT INTO inventory_assignments (id, inventory_id, user_id, role, confirmation_status)
+  SELECT pg_temp.mvp_id('commission', s.n), i.id, s.user_id, 'Chairperson', 'Pending'
+  FROM new_inventories i JOIN scenarios s ON i.id=pg_temp.mvp_id('inventory',s.n)
+  RETURNING inventory_id, user_id
+), snapshot AS (
+  SELECT i.id AS inventory_id, i.started_at, i.status='Active' AS active, s.n AS scenario_no, m.user_id, a.*,
+    row_number() OVER (PARTITION BY i.id ORDER BY a.asset_no) AS position
+  FROM new_inventories i
+  JOIN new_assignments m ON m.inventory_id=i.id
+  JOIN scenarios s ON i.id=pg_temp.mvp_id('inventory',s.n)
+  JOIN eligible_assets a ON a.materially_responsible_employee_id=s.mol_id
+)
+INSERT INTO inventory_asset_snapshots (id, inventory_id, asset_id, inventory_number, name, accounting_account,
+  serial_number, manufacture_year, accepted_at, initial_cost, department_id, location_id, materially_responsible_employee_id,
+  department_name, location_name, materially_responsible_full_name, result, condition, comment, scanned_at, scanned_by_user_id)
+SELECT pg_temp.mvp_id('inventory-item-' || a.scenario_no, a.asset_no), a.inventory_id, a.id, a.inventory_number, a.name,
+  a.accounting_account, a.serial_number, a.manufacture_year, a.accepted_at, a.initial_cost, a.department_id, a.location_id,
+  a.materially_responsible_employee_id, d.name, l.name, mol.full_name,
+  CASE WHEN a.active AND a.position>2 THEN 'Pending' WHEN NOT a.active AND a.position=3 THEN 'NotFound' ELSE 'Found' END,
+  CASE WHEN a.position=2 THEN 'Damaged' WHEN a.position=1 OR (NOT a.active AND a.position<>3) THEN 'Serviceable' END,
+  CASE WHEN a.position=2 THEN 'Тестовое замечание: повреждён корпус.' END,
+  CASE WHEN a.position<=2 OR (NOT a.active AND a.position<>3) THEN a.started_at + interval '1 minute' END,
+  CASE WHEN a.position<=2 OR (NOT a.active AND a.position<>3) THEN a.user_id END
+FROM snapshot a
+JOIN departments d ON d.id=a.department_id
+JOIN locations l ON l.id=a.location_id
+JOIN employees mol ON mol.id=a.materially_responsible_employee_id;
+
 INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, data_json, ip_address, correlation_id, created_at)
 VALUES (pg_temp.mvp_id('audit',1),NULL,'test-fixture.initialized','LocalMvpFixture','v1',
   '{"synthetic":true,"assets":1000,"departments":6,"locations":10,"employees":8,"workers":3,"inventories":4,"schedules":2}'::jsonb,NULL,'local-mvp-fixture-v1',now())
@@ -78,4 +135,12 @@ INSERT INTO audit_logs (id, user_id, action, entity_type, entity_id, data_json, 
 VALUES (pg_temp.mvp_id('audit',2),NULL,'test-fixture.expanded','LocalMvpFixture','v1-1000',
   '{"synthetic":true,"targetAssets":1000}'::jsonb,NULL,'local-mvp-fixture-v1-1000',now())
 ON CONFLICT (id) DO NOTHING;
+
+-- Use the same singleton lock as the organization editor.
+LOCK TABLE organizations IN SHARE ROW EXCLUSIVE MODE;
+INSERT INTO organizations (id, name, inn, kpp, okpo, address, director_name)
+SELECT pg_temp.mvp_id('organization', 1), 'ООО «Тестовое предприятие»',
+  '1234567890', '123456789', '12345678', 'Екатеринбург, тестовый адрес', 'Тестовый руководитель'
+WHERE NOT EXISTS (SELECT 1 FROM organizations);
+
 COMMIT;
