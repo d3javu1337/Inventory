@@ -12,6 +12,8 @@
     <PackageReference Include="QRCoder" />
     <PackageReference Include="ClosedXML" />
     <PackageReference Include="QuestPDF" />
+    <!-- EF Core design-time tools transitively request an affected PKCS version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <ProjectReference Include="..\AssetInventory.Application\AssetInventory.Application.csproj" />
     <ProjectReference Include="..\AssetInventory.Domain\AssetInventory.Domain.csproj" />
   </ItemGroup>
