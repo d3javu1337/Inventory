@@ -36,13 +36,11 @@ docker info --format '{{.ServerVersion}}' >/dev/null || {
   exit 1
 }
 
-compose=(docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d)
-if [[ "$SKIP_BUILD" == false ]]; then
-  compose+=(--build)
-else
-  compose+=(--no-build)
+deploy_options=()
+if [[ "$SKIP_BUILD" == true ]]; then
+  deploy_options+=(--skip-build)
 fi
-"${compose[@]}"
+bash "$SCRIPT_DIR/deploy.sh" "${deploy_options[@]}" up
 
 wait_for_url() {
   local url="$1" timeout="$2" expected_text="${3:-}"
@@ -56,11 +54,6 @@ wait_for_url() {
     sleep 1
   done
   return 1
-}
-
-wait_for_url 'http://localhost:5147/health/ready' 120 || {
-  echo 'API readiness did not succeed within 120 seconds.' >&2
-  exit 1
 }
 
 VITE="$MOBILE_ROOT/node_modules/vite/bin/vite.js"
@@ -87,11 +80,6 @@ else
     exit 1
   }
 fi
-
-wait_for_url 'http://localhost:5173/' 5 || {
-  echo 'Admin web is unavailable at http://localhost:5173.' >&2
-  exit 1
-}
 
 cat <<'EOF'
 Ready:

@@ -4,7 +4,30 @@
 
 Инфраструктура локального запуска проекта.
 
-### Запуск из bash
+## Деплой из Bash
+
+Из корня проекта на машине с работающим Docker Compose и `curl`:
+
+```bash
+./deploy/deploy.sh up
+./deploy/deploy.sh check
+./deploy/deploy.sh status
+./deploy/deploy.sh logs
+./deploy/deploy.sh stop
+```
+
+`up` подходит для первого запуска и обновления. Он собирает API и web, запускает PostgreSQL и Redis, дожидается готовности контейнеров и проверяет API и веб-панель через опубликованные порты. API применяет миграции при старте. `stop` сохраняет тома PostgreSQL, Redis и отчётов.
+
+Для запуска с уже собранными образами используйте `./deploy/deploy.sh --skip-build up`. Переменные Compose можно задать в `deploy/.env` по образцу `deploy/.env.example` или передать файл через `--env-file`. Для отдельного стенда укажите имя проекта и его Compose override:
+
+```bash
+./deploy/deploy.sh --project-name asset-demo --override deploy/docker-compose.demo.yml up
+./deploy/deploy.sh --project-name asset-demo --override deploy/docker-compose.demo.yml stop
+```
+
+Этот запуск использует локальные порты, заданные Compose. Node и .NET SDK на хосте нужны только для разработки вне контейнеров.
+
+### Локальная разработка из Bash
 
 Из корня проекта, после установки зависимостей web/mobile:
 
