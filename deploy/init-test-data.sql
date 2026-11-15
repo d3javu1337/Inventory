@@ -57,7 +57,7 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Drafts can be started normally by the existing administrator. Schedules are
--- disabled to avoid autonomous test writes. No reports/confirmations are forged.
+-- disabled to avoid autonomous test writes.
 INSERT INTO inventories (id, number, type, reason, reason_details, status, target_employee_id, planned_at, started_at, scanning_finished_at, completed_at, created_by_user_id, created_at, scheduled_period, source_schedule_id, report_context_json, source_inventory_id)
 SELECT pg_temp.mvp_id('inventory',n), 'INV-MVP-' || lpad(n::text,3,'0'),
   CASE WHEN n=2 THEN 'EventDriven' ELSE 'Manual' END, 'Other', 'Синтетический сценарий MVP ' || n,
@@ -73,21 +73,25 @@ FROM generate_series(1,4) n ON CONFLICT (id) DO NOTHING;
 -- Only newly inserted checks receive an assignment and snapshot. A rerun must
 -- preserve completed checks, scans and any changes to the original scope.
 WITH scenarios AS (
-  SELECT n, label, status, pg_temp.mvp_id('employee', mol) AS mol_id, pg_temp.mvp_id('user', worker) AS user_id
+  SELECT n, label, status, with_discrepancies,
+    pg_temp.mvp_id('employee', mol) AS mol_id, pg_temp.mvp_id('user', worker) AS user_id
   FROM (VALUES
-    (5, 'Демо: активный обход с повреждённым ОС', 'Active', 2, 1),
-    (6, 'Демо: обход с недостачей ожидает подтверждения', 'AwaitingConfirmation', 3, 2)
-  ) s(n, label, status, mol, worker)
+    (5, 'Демо: активный обход с повреждённым ОС', 'Active', 2, 1, true),
+    (6, 'Демо: обход с недостачей ожидает подтверждения', 'AwaitingConfirmation', 3, 2, true),
+    (7, 'Демо: завершённая инвентаризация без расхождений', 'Completed', 4, 3, false),
+    (8, 'Демо: завершённая инвентаризация с недостачей и повреждением', 'Completed', 5, 1, true)
+  ) s(n, label, status, mol, worker, with_discrepancies)
 ), eligible_assets AS (
   SELECT n AS asset_no, a.*
   FROM generate_series(1,1000) n JOIN assets a ON a.id=pg_temp.mvp_id('asset',n)
   WHERE a.archived_at IS NULL AND a.status <> 'Archived'
 ), new_inventories AS (
   INSERT INTO inventories (id, number, type, reason, reason_details, status, target_employee_id, planned_at,
-    started_at, scanning_finished_at, round, created_at)
+    started_at, scanning_finished_at, completed_at, round, created_at)
   SELECT pg_temp.mvp_id('inventory', s.n), 'INV-MVP-' || lpad(s.n::text,3,'0'), 'EventDriven', 'Other',
     s.label, s.status, s.mol_id, '2026-10-10T09:00:00Z', '2026-10-10T09:00:00Z',
-    CASE WHEN s.status='AwaitingConfirmation' THEN '2026-10-10T09:15:00Z'::timestamptz END,
+    CASE WHEN s.status<>'Active' THEN '2026-10-10T09:15:00Z'::timestamptz END,
+    CASE WHEN s.status='Completed' THEN '2026-10-10T09:17:00Z'::timestamptz END,
     1, '2026-10-04T09:00:00Z'
   FROM scenarios s
   JOIN user_accounts u ON u.id=s.user_id
@@ -97,19 +101,30 @@ WITH scenarios AS (
     AND d.is_inventory_department AND NOT d.is_archived AND e.id<>s.mol_id
     AND (SELECT count(*) FROM eligible_assets a WHERE a.materially_responsible_employee_id=s.mol_id) >= 3
   ON CONFLICT (id) DO NOTHING
-  RETURNING id, status, started_at
+  RETURNING id, status, started_at, completed_at
 ), new_assignments AS (
-  INSERT INTO inventory_assignments (id, inventory_id, user_id, role, confirmation_status)
-  SELECT pg_temp.mvp_id('commission', s.n), i.id, s.user_id, 'Chairperson', 'Pending'
+  INSERT INTO inventory_assignments (id, inventory_id, user_id, role, confirmation_status, confirmed_at)
+  SELECT pg_temp.mvp_id('commission', s.n), i.id, s.user_id, 'Chairperson',
+    CASE WHEN i.completed_at IS NOT NULL THEN 'Confirmed' ELSE 'Pending' END, i.completed_at
   FROM new_inventories i JOIN scenarios s ON i.id=pg_temp.mvp_id('inventory',s.n)
   RETURNING inventory_id, user_id
 ), snapshot AS (
-  SELECT i.id AS inventory_id, i.started_at, i.status='Active' AS active, s.n AS scenario_no, m.user_id, a.*,
+  SELECT i.id AS inventory_id, i.started_at, i.status='Active' AS active, s.n AS scenario_no, s.with_discrepancies,
+    m.user_id, a.*,
     row_number() OVER (PARTITION BY i.id ORDER BY a.asset_no) AS position
   FROM new_inventories i
   JOIN new_assignments m ON m.inventory_id=i.id
   JOIN scenarios s ON i.id=pg_temp.mvp_id('inventory',s.n)
   JOIN eligible_assets a ON a.materially_responsible_employee_id=s.mol_id
+), observations AS (
+  SELECT s.*,
+    CASE
+      WHEN s.active AND s.position>2 THEN 'Pending'
+      WHEN NOT s.active AND s.with_discrepancies AND s.position=3 THEN 'NotFound'
+      ELSE 'Found'
+    END AS result,
+    s.with_discrepancies AND s.position=2 AS damaged
+  FROM snapshot s
 )
 INSERT INTO inventory_asset_snapshots (id, inventory_id, asset_id, inventory_number, name, accounting_account,
   serial_number, manufacture_year, accepted_at, initial_cost, department_id, location_id, materially_responsible_employee_id,
@@ -117,12 +132,12 @@ INSERT INTO inventory_asset_snapshots (id, inventory_id, asset_id, inventory_num
 SELECT pg_temp.mvp_id('inventory-item-' || a.scenario_no, a.asset_no), a.inventory_id, a.id, a.inventory_number, a.name,
   a.accounting_account, a.serial_number, a.manufacture_year, a.accepted_at, a.initial_cost, a.department_id, a.location_id,
   a.materially_responsible_employee_id, d.name, l.name, mol.full_name,
-  CASE WHEN a.active AND a.position>2 THEN 'Pending' WHEN NOT a.active AND a.position=3 THEN 'NotFound' ELSE 'Found' END,
-  CASE WHEN a.position=2 THEN 'Damaged' WHEN a.position=1 OR (NOT a.active AND a.position<>3) THEN 'Serviceable' END,
-  CASE WHEN a.position=2 THEN 'Тестовое замечание: повреждён корпус.' END,
-  CASE WHEN a.position<=2 OR (NOT a.active AND a.position<>3) THEN a.started_at + interval '1 minute' END,
-  CASE WHEN a.position<=2 OR (NOT a.active AND a.position<>3) THEN a.user_id END
-FROM snapshot a
+  a.result,
+  CASE WHEN a.damaged THEN 'Damaged' WHEN a.result='Found' THEN 'Serviceable' END,
+  CASE WHEN a.damaged THEN 'Тестовое замечание: повреждён корпус.' END,
+  CASE WHEN a.result='Found' THEN a.started_at + interval '1 minute' END,
+  CASE WHEN a.result='Found' THEN a.user_id END
+FROM observations a
 JOIN departments d ON d.id=a.department_id
 JOIN locations l ON l.id=a.location_id
 JOIN employees mol ON mol.id=a.materially_responsible_employee_id;
