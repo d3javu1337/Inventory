@@ -5,13 +5,14 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'EOF'
-Usage: deploy/deploy.sh [options] [up|check|status|logs|stop]
+Usage: deploy/deploy.sh [options] [up|check|status|logs|stop|seed]
 
 up      Build and start the Compose services, then check API and web.
 check   Check the published API and web endpoints.
 status  Show all containers for the selected Compose project.
 logs    Show the last 100 log lines for each service.
 stop    Stop the containers and keep the database and report volumes.
+seed    Load the 1,000-asset fixture into the selected local test stack.
 
 Options:
   --skip-build          Use existing images (up only).
@@ -49,7 +50,7 @@ done
 action="${1:-up}"
 (( $# <= 1 )) || usage_error "Unexpected argument: $2"
 case "$action" in
-  up|check|status|logs|stop) ;;
+  up|check|status|logs|stop|seed) ;;
   *) usage_error "Unknown command: $action" ;;
 esac
 [[ "$build" == --build || "$action" == up ]] || usage_error '--skip-build requires up.'
@@ -79,6 +80,18 @@ check_endpoint() {
   printf 'OK: %s %s\n' "$service" "$url"
 }
 
+seed_test_data() {
+  local file
+  for file in repair-test-data.sql init-test-data.sql; do
+    printf 'Applying %s...\n' "$file"
+    "${compose[@]}" exec -T postgres sh -ec '
+      export PGCLIENTENCODING=UTF8
+      exec psql -X --set=ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --file=-
+    ' < "$SCRIPT_DIR/$file"
+  done
+  printf '%s\n' 'Test data loaded. Cached catalogs can take up to 30 seconds to refresh.'
+}
+
 case "$action" in
   up)
     if ! "${compose[@]}" up --detach "$build" --wait --wait-timeout 120; then
@@ -95,4 +108,5 @@ case "$action" in
   status) "${compose[@]}" ps --all ;;
   logs) "${compose[@]}" logs --tail 100 ;;
   stop) "${compose[@]}" stop ;;
+  seed) seed_test_data ;;
 esac
