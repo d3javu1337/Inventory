@@ -6,6 +6,8 @@
 
 ## Деплой из Bash
 
+Проверьте `docker compose version`. На macOS Compose входит в [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/). Скрипт также поддерживает современный отдельный `docker-compose` версии 2 и выше.
+
 Из корня проекта на машине с работающим Docker Compose и `curl`:
 
 ```bash

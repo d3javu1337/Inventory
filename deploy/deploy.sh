@@ -26,7 +26,7 @@ EOF
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 usage_error() { printf '%s\n' "$*" >&2; usage >&2; exit 2; }
 
-compose=(docker compose -f "$SCRIPT_DIR/docker-compose.yml")
+compose_options=(-f "$SCRIPT_DIR/docker-compose.yml")
 build=--build
 env_file=""
 while (( $# )); do
@@ -34,9 +34,9 @@ while (( $# )); do
     --project-name|--env-file|--override)
       [[ -n "${2:-}" && "$2" != -* ]] || usage_error "Missing value for $1."
       case "$1" in
-        --project-name) compose+=(--project-name "$2") ;;
+        --project-name) compose_options+=(--project-name "$2") ;;
         --env-file) env_file="$2" ;;
-        --override) compose+=(-f "$2") ;;
+        --override) compose_options+=(-f "$2") ;;
       esac
       shift 2
       ;;
@@ -59,10 +59,19 @@ if [[ -z "$env_file" && -f "$SCRIPT_DIR/.env" ]]; then
 fi
 if [[ -n "$env_file" ]]; then
   [[ -f "$env_file" ]] || fail "Compose environment file not found: $env_file"
-  compose+=(--env-file "$env_file")
+  compose_options+=(--env-file "$env_file")
 fi
 
-command -v docker >/dev/null 2>&1 || fail 'Docker is required.'
+if docker compose version >/dev/null 2>&1; then
+  compose=(docker compose)
+elif compose_version="$(docker-compose version --short 2>/dev/null)" &&
+  [[ "$compose_version" =~ ^v?([0-9]+)\. ]] && (( BASH_REMATCH[1] >= 2 )); then
+  compose=(docker-compose)
+else
+  fail 'Docker Compose is unavailable. Install or enable the Compose plugin and verify that "docker compose version" works in this terminal.'
+fi
+compose+=("${compose_options[@]}")
+
 if [[ "$action" == up || "$action" == check ]]; then
   command -v curl >/dev/null 2>&1 || fail 'curl is required for HTTP checks.'
 fi
