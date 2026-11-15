@@ -1,0 +1,33 @@
+.git
+**/.git
+**/.idea
+**/.vscode
+**/.env
+**/.env.*
+**/.envrc
+**/*.key
+**/*.jks
+**/*.keystore
+**/*.pfx
+**/*.p12
+**/*.pem
+
+# The root build context is used by the backend image.
+web
+mobile
+tmp
+output
+backups
+storage
+Курсовая Asset Inventory
+backend/**/bin
+backend/**/obj
+backend/**/TestResults
+backend/**/.packages
+backend/**/appsettings.Local.json
+backend/**/appsettings.*.local.json
+backend/storage
+backend/src/AssetInventory.Api/storage
+deploy/backups
+deploy/output
+deploy/storage

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\AssetInventory.Contracts\AssetInventory.Contracts.csproj" />
+    <ProjectReference Include="..\AssetInventory.Domain\AssetInventory.Domain.csproj" />
+  </ItemGroup>
+</Project>

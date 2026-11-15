@@ -1,0 +1,12 @@
+services:
+  api:
+    image: deploy-api
+    ports: !override
+      - "127.0.0.1:15147:8080"
+  web:
+    image: deploy-web
+    ports: !override
+      - "127.0.0.1:15173:80"
+networks:
+  backend:
+    name: asset-inventory-demo-backend

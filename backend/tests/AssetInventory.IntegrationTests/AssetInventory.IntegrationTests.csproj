@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>false</IsPackable><IsTestProject>true</IsTestProject></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <!-- Override Testcontainers' vulnerable transitive SSH.NET version. -->
+    <PackageReference Include="SSH.NET" />
+    <ProjectReference Include="../../src/AssetInventory.Infrastructure/AssetInventory.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/AssetInventory.Api/AssetInventory.Api.csproj" />
+  </ItemGroup>
+</Project>

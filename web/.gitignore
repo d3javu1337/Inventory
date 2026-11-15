@@ -1,0 +1,12 @@
+# npm and Vite
+node_modules/
+/dist/
+*.local
+*.tsbuildinfo
+/.sites-runtime/
+
+# Playwright and Vitest output
+/playwright-report/
+/playwright/.cache/
+/test-results/
+/coverage/

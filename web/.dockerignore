@@ -1,0 +1,17 @@
+**/node_modules
+dist
+test-results
+playwright-report
+playwright/.cache
+coverage
+**/.env*
+**/*.local
+**/*.key
+**/*.pfx
+**/*.p12
+**/*.pem
+**/.git
+**/.idea
+**/.vscode
+.sites-runtime
+**/*.tsbuildinfo

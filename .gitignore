@@ -1,0 +1,27 @@
+# Local editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+~$*
+*.log
+
+# Local environment files and private keys
+.env
+.env.*
+!.env.example
+.envrc
+*.key
+*.jks
+*.keystore
+*.pfx
+*.p12
+*.pem
+
+# Local project data and coursework
+/tmp/
+/output/
+/backups/
+/storage/
+/Курсовая Asset Inventory/

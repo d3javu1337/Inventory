@@ -1,0 +1,2 @@
+import { describe, expect, it } from 'vitest'; import { formatMoney, percent } from '../src/shared/formatters'; import { label } from '../src/shared/labels';
+describe('представление данных',()=>{it('переводит доменные статусы',()=>expect(label('ReviewRequired')).toBe('Требует доработки'));it('вычисляет прогресс безопасно',()=>{expect(percent(3,4)).toBe(75);expect(percent(0,0)).toBe(0)});it('форматирует рубли',()=>expect(formatMoney(1200)).toContain('1 200'))});

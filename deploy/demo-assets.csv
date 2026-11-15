@@ -1,0 +1,4 @@
+inventoryNumber;name;accountingAccount;serialNumber;manufactureYear;acceptedAt;initialCost;departmentCode;locationCode;molPersonnelNumber
+OS-001;Ноутбук;01.01;SN-001;2025;2026-01-01;100000.00;DEP-01;ROOM-01;EMP-001
+OS-002;Монитор;01.01;SN-002;2025;2026-01-01;30000.00;DEP-01;ROOM-01;EMP-001
+OS-003;Стол офисный;01.01;;2024;2026-01-01;15000.50;DEP-01;ROOM-01;EMP-001

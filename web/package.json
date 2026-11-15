@@ -1,0 +1,45 @@
+{
+  "name": "asset-inventory-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:mobile-live": "playwright test --config playwright.mobile-live.config.ts",
+    "test:e2e:mobile-reports": "playwright test --config playwright.mobile-reports.config.ts",
+    "typecheck:live": "tsc --project tsconfig.live.json",
+    "generate:api": "openapi-typescript http://localhost:5147/openapi/v1.json -o src/api/generated/schema.d.ts"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.13.5",
+    "@emotion/styled": "^11.13.5",
+    "@hookform/resolvers": "^3.9.1",
+    "@mui/icons-material": "^6.3.0",
+    "@mui/material": "^6.3.0",
+    "@tanstack/react-query": "^5.62.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.54.2",
+    "react-router-dom": "^7.1.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.4.4",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.5",
+    "vitest": "^4.1.11"
+  }
+}

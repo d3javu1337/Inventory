@@ -1,0 +1,15 @@
+@host = http://localhost:5147
+
+GET {{host}}/api/v1/
+Accept: application/json
+X-Correlation-ID: local-check
+
+###
+
+GET {{host}}/health/live
+Accept: application/json
+
+###
+
+GET {{host}}/health/ready
+Accept: application/json
